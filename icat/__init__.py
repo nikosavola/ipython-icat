@@ -1,4 +1,5 @@
 import sys
+from contextlib import suppress
 from io import BytesIO
 from os import getenv
 from pathlib import Path
@@ -49,14 +50,15 @@ class FigureCanvasICat(FigureCanvasAgg):
 class _BackendICatAgg(_Backend):
     FigureCanvas = FigureCanvasICat
     FigureManager = FigureManagerICat
-    mainloop = lambda: None
+
+    def mainloop():
+        pass
 
     @classmethod
     def draw_if_interactive(cls):
         manager = Gcf.get_active()
-        if is_interactive() and manager.canvas.figure.get_axes():
+        if manager and is_interactive() and manager.canvas.figure.get_axes():
             cls.show()
-
     @classmethod
     def show(cls, *args, **kwargs):
         _Backend.show(*args, **kwargs)
@@ -69,7 +71,10 @@ class ICatMagics(Magics):
     @argument(
         "target",
         nargs="?",
-        help="Toggle on/off/status, a Python expression that evaluates to a PIL Image, or a path to an image file",
+        help=(
+            "Toggle on/off/status, a Python expression that evaluates to a PIL Image,"
+            " or a path to an image file"
+        ),
     )
     @argument("-W", "--width", type=int, help="Width to resize the image")
     @argument("-H", "--height", type=int, help="Height to resize the image")
@@ -91,21 +96,22 @@ class ICatMagics(Magics):
         obj = _resolve_target(self.shell, target)
         if obj is None:
             print(
-                f"Error: could not resolve '{target}' as an image expression or file path."
+                "Error: could not resolve "
+                f"'{target}' as an image expression or file path."
             )
             return
 
         img = _coerce_to_image(obj)
         if img is None:
             print(
-                f"Error: '{target}' did not evaluate to a PIL Image or readable image path."
+                "Error: "
+                f"'{target}' did not evaluate to a PIL Image or readable image path."
             )
             return
 
         # resize the image if width or height is specified
         if args.width or args.height:
             img.thumbnail((args.width or img.width, args.height or img.height))
-
         # display image
         with BytesIO() as buf:
             img.save(buf, format="PNG")
@@ -183,14 +189,12 @@ def _print_status(shell) -> None:
     enabled = bool(state.get("enabled"))
     prev = state.get("prev_mpl_backend")
     current = None
-    try:
+    with suppress(Exception):
         current = matplotlib.get_backend()
-    except Exception:
-        pass
     print(
-        f"icat: enabled={enabled}, matplotlib_backend={current!r}, prev_backend={prev!r}"
+        f"icat: enabled={enabled}, matplotlib_backend={current!r}, "
+        f"prev_backend={prev!r}"
     )
-
 
 def _resolve_target(shell, target: str):
     try:
@@ -207,7 +211,6 @@ def _resolve_target(shell, target: str):
 
     return None
 
-
 def _coerce_to_image(obj):
     if isinstance(obj, Image.Image):
         return obj.copy()
@@ -216,7 +219,6 @@ def _coerce_to_image(obj):
         path = Path(obj).expanduser()
         if path.is_file():
             return Image.open(path)
-
     return None
 
 
@@ -246,7 +248,6 @@ def _disable_pil_autorender(shell) -> None:
 
     state = _session_state(shell)
     fmt = ip.display_formatter.formatters["text/plain"]
-
     prev_present = bool(state.get("_prev_pil_printer_present"))
     if not prev_present:
         fmt.type_printers.pop(Image.Image, None)

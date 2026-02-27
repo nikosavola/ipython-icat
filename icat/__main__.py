@@ -52,19 +52,22 @@ def setup_ipython_profile(
     try:
         with profile_path.open("w") as f:
             f.writelines(lines)
-    except IOError as e:
-        raise RuntimeError(f"Failed to write to config file {profile_path}: {e}")
+    except OSError as e:
+        raise RuntimeError(
+            f"Failed to write to config file {profile_path}: {e}"
+        ) from e
 
     print(f"Successfully updated IPython config at {profile_path}")
     return True
 
 
 def sanitize_profile_name(profile_name: str) -> str:
-    """Sanitize profile name to prevent command injection"""
+    """Sanitize profile name to prevent command injection."""
     # Allow only alphanumeric characters, dashes and underscores
     if not profile_name or not re.match(r"^[a-zA-Z0-9_-]+$", profile_name):
         raise ValueError(
-            "Profile name must contain only alphanumeric characters, underscores, or dashes"
+            "Profile name must contain only alphanumeric characters, "
+            "underscores, or dashes"
         )
     return profile_name
 
@@ -72,7 +75,7 @@ def sanitize_profile_name(profile_name: str) -> str:
 def get_profile_path(
     profile_name: str, ipython_path: Optional[Union[str, Path]] = None
 ) -> Path:
-    """Silently create a default profile if it doesn't exist"""
+    """Silently create a default profile if it doesn't exist."""
     profile_name = sanitize_profile_name(profile_name)
 
     try:
@@ -91,16 +94,18 @@ def get_profile_path(
                     ["ipython", "profile", "create", profile_name], check=True
                 )
             except subprocess.CalledProcessError as e:
-                raise RuntimeError(f"Failed to create IPython profile: {e.stderr}")
+                raise RuntimeError(
+                    f"Failed to create IPython profile: {e.stderr}"
+                ) from e
 
         profile_path = profile_dir / "ipython_config.py"
         return profile_path
     except (PermissionError, OSError) as e:
-        raise RuntimeError(f"Error accessing IPython paths: {e}")
+        raise RuntimeError(f"Error accessing IPython paths: {e}") from e
 
 
 def dynamic_update_config(profile_path: Path) -> Tuple[str, str]:
-    """Returns updated extensions and exec_lines"""
+    """Return updated extensions and exec_lines."""
     profile_path = Path(profile_path)
 
     config = Config()
@@ -111,12 +116,11 @@ def dynamic_update_config(profile_path: Path) -> Tuple[str, str]:
             )
             config = config_loader.load_config()
         except Exception as e:
-            raise RuntimeError(f"Error loading IPython config: {e}")
+            raise RuntimeError(f"Error loading IPython config: {e}") from e
 
     # Ensure extensions and exec_lines are lists
     extensions = config.get("InteractiveShellApp", {}).get("extensions", [])
     exec_lines = config.get("InteractiveShellApp", {}).get("exec_lines", [])
-
     if "icat" not in extensions:
         extensions.append("icat")
 
@@ -132,21 +136,22 @@ def dynamic_update_config(profile_path: Path) -> Tuple[str, str]:
 def dynamic_update_file(
     profile_path: Path, extensions_line: str, exec_lines_line: str
 ) -> List[str]:
-    """Write updated configuration to the file"""
+    """Write updated configuration to the file."""
     profile_path = Path(profile_path)
 
     # Read and modify only the necessary lines
     if profile_path.exists():
         try:
-            with open(profile_path, "r") as f:
+            with open(profile_path) as f:
                 lines = f.readlines()
-        except IOError as e:
-            raise RuntimeError(f"Could not read config file {profile_path}: {e}")
+        except OSError as e:
+            raise RuntimeError(
+                f"Could not read config file {profile_path}: {e}"
+            ) from e
 
         # Modify lines if they exist; otherwise, add them
         found_extensions = False
         found_exec_lines = False
-
         for i, line in enumerate(lines):
             if line.startswith("c.InteractiveShellApp.extensions ="):
                 lines[i] = extensions_line
